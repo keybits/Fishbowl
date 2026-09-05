@@ -26,7 +26,7 @@ before you deploy.
 
 ```bash
 npm test                  # 28 rules tests, no network, instant
-node test/server.test.js  # 22 integration tests over real websockets
+node test/server.test.js  # 23 integration tests over real websockets
 node test/ui.js           # drives a phone-sized browser, writes shots/ (needs playwright)
 node test/sound.js        # 17 audio tests — plays a real 30s turn, so it takes a minute
 ```
@@ -107,8 +107,9 @@ the answer never leaves the server for anyone else.
   returns to the pile at the start of each round.
 - **Skips** are unlimited. A skipped card goes to the back of the pile and
   always comes back.
-- **Carryover.** If the pile empties mid-turn, the seconds left are banked and
-  added to that team's *next* turn.
+- **Round finish.** If the pile empties mid-turn, the same player starts the
+  next round with the seconds left on their clock. The leader still chooses the
+  standard duration for the new round, which applies after that opening turn.
 - **Score editing.** The leader can nudge a turn's count up or down on the
   summary screen. Adjusting also corrects that player's personal stats.
 - **Leader handover** is offered between rounds and after a completed round.

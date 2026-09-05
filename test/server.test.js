@@ -138,10 +138,10 @@ async function until(fn, label, timeout = 3000) {
     await wait(30);
   }
   await until(() => host.state.phase === 'turnSummary', 'round finished mid-turn');
-  check('clearing the pile ends the turn and banks the time', () => {
+  check('clearing the pile ends the turn and records the next-round starter', () => {
     assert.strictEqual(host.state.cardsLeft, 0);
-    const teamId = host.state.turn.teamId;
-    assert.ok(host.state.carryover[teamId] > 0, 'seconds were banked');
+    assert.strictEqual(host.state.nextRoundStarter.playerId, host.state.turn.playerId);
+    assert.ok(host.state.nextRoundStarter.seconds > 0, 'seconds remain for the next round');
   });
   check('the summary reports eight correct', () =>
     assert.strictEqual(host.state.summary.correct, 8));
@@ -170,18 +170,20 @@ async function until(fn, label, timeout = 3000) {
   check('all cards return for the new round', () =>
     assert.strictEqual(leader.state.cardsLeft, 8));
 
-  // Let a real turn actually time out, to prove the server-side timer fires.
+  // The leader still chooses the new round's standard duration, but the
+  // opening turn uses only the time carried by the same player.
+  const starterId = leader.state.nextRoundStarter.playerId;
+  const starterSeconds = leader.state.nextRoundStarter.seconds;
   leader.send({ type: 'setDuration', value: 30 });
   leader.send({ type: 'readyTurn' });
   await until(() => leader.state.phase === 'turnReady', 'turn 2 ready');
-  const bonusTeam = leader.state.turn.teamId;
-  const expectedBonus = leader.state.carryover[bonusTeam] || 0;
+  check('the same player starts the new round', () =>
+    assert.strictEqual(leader.state.turn.playerId, starterId));
   leader.send({ type: 'beginTurn' });
   await until(() => leader.state.phase === 'playing', 'turn 2 playing');
-  check('banked seconds are added to the right team\'s turn', () => {
-    const total = Math.round((leader.state.turn.endsAt - Date.now()) / 1000);
-    assert.ok(total > 30 === expectedBonus > 0,
-      'bonus ' + expectedBonus + ' reflected in a ' + total + 's turn');
+  check('the opening turn uses the recorded remaining seconds', () => {
+    assert.strictEqual(leader.state.turn.seconds, starterSeconds);
+    assert.strictEqual(leader.state.turn.isRoundStarter, true);
   });
 
   // reconnect mid-game

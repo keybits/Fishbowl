@@ -115,7 +115,7 @@ class Game {
     this.hostId = null;
 
     this.roundIndex = 0;
-    this.turnNumber = 0; // global count of turns started
+    this.turnNumber = 0; // regular rotation turns started; round starters are special
     this.turnDuration = 60;
 
     this.pile = []; // card ids remaining this round
@@ -124,9 +124,15 @@ class Game {
     this.turnPlayerId = null;
     this.turnTeamId = null;
     this.turnLog = []; // {cardId, result} for the turn in progress
-    this.turnBonus = 0; // seconds carried in to the current turn
+    this.turnBonus = 0; // retained for the snapshot shape; normal turns have no bonus
+    this.turnSeconds = null; // effective duration selected for the current turn
+    this.turnIsRoundStarter = false;
 
-    this.carryover = {}; // teamId -> seconds banked for that team's next turn
+    // When a round ends during a turn, that same player starts the next round
+    // with the seconds left on the clock. The leader still chooses the normal
+    // duration for the rest of that round.
+    this.nextRoundStarter = null; // { playerId, teamId, seconds }
+    this.carryover = {}; // retained as an empty compatibility field
     this.roundResults = [];
     this.endedEarly = false;
   }
@@ -248,6 +254,7 @@ class Game {
     }
     for (const p of this.players) p.teamId = null;
     this.carryover = {};
+    this.nextRoundStarter = null;
   }
 
   assignPlayer(playerId, targetPlayerId, teamId) {
@@ -330,12 +337,24 @@ class Game {
       throw new GameError('Not ready for a turn right now.');
     }
     if (this.pile.length === 0) throw new GameError('This round is already finished.');
-    const team = this.nextUpTeam();
-    const player = this.nextUpPlayer();
-    if (!player) throw new GameError('That team has no players.');
+    let team;
+    let player;
+    const isRoundStarter = this.phase === 'roundIntro' && this.nextRoundStarter;
+    if (isRoundStarter) {
+      player = this.getPlayer(this.nextRoundStarter.playerId);
+      team = this.teams.find((t) => t.id === this.nextRoundStarter.teamId);
+      if (!player || !team) throw new GameError('The next round starter is no longer available.');
+      this.turnSeconds = this.nextRoundStarter.seconds;
+    } else {
+      team = this.nextUpTeam();
+      player = this.nextUpPlayer();
+      if (!player) throw new GameError('That team has no players.');
+      this.turnSeconds = null;
+    }
     this.turnPlayerId = player.id;
     this.turnTeamId = team.id;
-    this.turnBonus = this.carryover[team.id] || 0;
+    this.turnBonus = 0;
+    this.turnIsRoundStarter = !!isRoundStarter;
     this.phase = 'turnReady';
   }
 
@@ -343,15 +362,20 @@ class Game {
     this.requireHost(playerId);
     if (this.phase !== 'turnReady') throw new GameError('Not ready to begin.');
     const team = this.teams.find((t) => t.id === this.turnTeamId);
-    const bonus = this.carryover[team.id] || 0;
-    this.carryover[team.id] = 0;
-    this.turnBonus = bonus;
-    const total = this.turnDuration + bonus;
+    const isRoundStarter = this.turnIsRoundStarter;
+    const total = isRoundStarter ? this.turnSeconds : this.turnDuration;
+    this.turnBonus = 0;
     this.turnEndsAt = this.now() + total * 1000;
+    this.turnSeconds = total;
+    this.nextRoundStarter = null;
     this.turnLog = [];
     this.currentCardId = this.pile[0] || null;
-    this.turnNumber += 1;
-    team.rotationIndex += 1;
+    // The special starter already consumed this player's normal turn in the
+    // rotation. Keep the regular rotation pointed at the next team/player.
+    if (!isRoundStarter) {
+      this.turnNumber += 1;
+      team.rotationIndex += 1;
+    }
     const p = this.getPlayer(this.turnPlayerId);
     if (p) p.stats.turns += 1;
     this.phase = 'playing';
@@ -397,13 +421,15 @@ class Game {
     return { done: false };
   }
 
-  /** The pile emptied while the clock was still running: bank the remainder
-   *  for this team's next turn, exactly as the house rules say. */
+  /** The pile emptied while the clock was still running: carry the current
+   * player and the remaining seconds into the start of the next round. */
   finishRoundMidTurn() {
     const remaining = this.secondsLeft();
-    if (remaining > 0) {
-      this.carryover[this.turnTeamId] = (this.carryover[this.turnTeamId] || 0) + remaining;
-    }
+    this.nextRoundStarter = {
+      playerId: this.turnPlayerId,
+      teamId: this.turnTeamId,
+      seconds: remaining,
+    };
     this.turnEndsAt = null;
     this.currentCardId = null;
     this.phase = 'turnSummary';
@@ -560,6 +586,7 @@ class Game {
       cardsLeft: this.pile.length,
       carryover: this.carryover,
       endedEarly: this.endedEarly,
+      nextRoundStarter: this.nextRoundStarter,
     };
 
     if (['turnReady', 'playing', 'turnSummary'].includes(this.phase)) {
@@ -572,6 +599,8 @@ class Game {
         teamName: tt ? tt.name : '',
         teamColor: tt ? tt.color : '#888',
         bonus: this.turnBonus,
+        seconds: this.turnSeconds,
+        isRoundStarter: this.turnIsRoundStarter,
         endsAt: this.turnEndsAt,
         // The card only ever goes to the leader's device — nobody else's
         // phone should be able to peek at the answer.
@@ -585,8 +614,13 @@ class Game {
     if (this.phase === 'turnSummary') base.summary = this.turnSummary();
 
     if (['turnReady', 'roundIntro', 'turnSummary', 'playing'].includes(this.phase)) {
-      const upTeam = this.nextUpTeam();
-      const upPlayer = this.nextUpPlayer();
+      const pending = this.phase === 'roundIntro' ? this.nextRoundStarter : null;
+      const upTeam = pending
+        ? this.teams.find((t) => t.id === pending.teamId)
+        : this.nextUpTeam();
+      const upPlayer = pending
+        ? this.getPlayer(pending.playerId)
+        : this.nextUpPlayer();
       base.nextUp = upTeam && upPlayer
         ? { playerId: upPlayer.id, playerName: upPlayer.name, teamId: upTeam.id, teamName: upTeam.name, teamColor: upTeam.color }
         : null;

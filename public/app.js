@@ -431,17 +431,18 @@
   function renderTurnReady() {
     if (!state.youAreHost) return spectator('Pass the phone to ' + state.turn.playerName + '.');
     var t = state.turn;
-    var bonus = t.bonus > 0
-      ? '<p class="hint">+' + t.bonus + 's carried over from last round.</p>' : '';
+    var seconds = typeof t.seconds === 'number' ? t.seconds : state.turnDuration + (t.bonus || 0);
+    var carryover = t.isRoundStarter
+      ? '<p class="hint">' + seconds + 's left from the previous round.</p>' : '';
     return topbar({ code: true, endGame: true }) +
       '<div class="screen">' +
         '<div class="grow pass-phone" style="display:flex;flex-direction:column;justify-content:center">' +
           '<p style="margin-bottom:0">Pass the phone to</p>' +
           '<div class="who">' + esc(t.playerName) + '</div>' +
           '<div>' + teamPill(findTeam(t.teamId)) + '</div>' +
-          '<p class="hint mt">' + esc(state.round.name) + ' · ' + (state.turnDuration + t.bonus) + ' seconds · ' +
+          '<p class="hint mt">' + esc(state.round.name) + ' · ' + seconds + ' seconds · ' +
             state.cardsLeft + ' cards left</p>' +
-          bonus +
+          carryover +
         '</div>' +
         '<div class="sticky-foot">' +
           '<button class="btn-primary btn-block" data-act="begin-turn">Begin</button>' +
@@ -496,9 +497,12 @@
         '<span class="tscore">' + t.score + '</span></li>';
     }).join('');
 
-    var carried = roundDone && state.carryover[s.teamId]
-      ? '<p class="hint center">' + state.carryover[s.teamId] + ' seconds banked for ' +
-        esc(findTeam(s.teamId) ? findTeam(s.teamId).name : '') + '\'s next turn.</p>'
+    var nextRound = roundDone && state.nextRoundStarter
+      ? (function () {
+          var starter = state.players.filter(function (p) { return p.id === state.nextRoundStarter.playerId; })[0];
+          return '<p class="hint center">Round ' + (state.roundIndex + 2) + ' starts with ' +
+            esc(starter ? starter.name : '') + ' using ' + state.nextRoundStarter.seconds + ' seconds left.</p>';
+        })()
       : '';
 
     var nextLabel = roundDone
@@ -515,7 +519,7 @@
         '</div>' +
         '<p class="hint center">Tap − or + if the count is off. ' + s.skipped + ' skipped.</p>' +
         (roundDone ? '<p class="center" style="color:var(--accent);font-weight:700">Round complete</p>' : '') +
-        carried +
+        nextRound +
         '<div class="divider"></div>' +
         '<div class="scroll"><ul class="board">' + board + '</ul>' +
           (showHandover ? handoverPanel() : '') +
@@ -599,7 +603,8 @@
       alarmFired = false;
     }
 
-    var total = state.turnDuration + (state.turn.bonus || 0);
+    var total = typeof state.turn.seconds === 'number'
+      ? state.turn.seconds : state.turnDuration + (state.turn.bonus || 0);
     var tick = function () {
       var clock = document.getElementById('clock');
       var bar = document.getElementById('bar');

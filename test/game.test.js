@@ -239,48 +239,58 @@ test('the card is only ever exposed to the leader', () => {
 // -------------------------------------------------------------- carryover
 group('Round transitions and carryover');
 
-test('emptying the pile mid-turn banks the remaining time for that team', () => {
+test('emptying the pile mid-turn carries the current player and remaining time into the next round', () => {
   const clock = fakeClock();
   const { g, host } = setup({ players: 2, teams: 2, cards: 1, clock });
   g.setDuration(host, 60);
   g.start(host);
   g.readyTurn(host);
   g.beginTurn(host);
+  const currentPlayerId = g.turnPlayerId;
   clock.advance(20000); // 20s used, 40s left
   g.markCorrect(host); // card 1 of 2
   const res = g.markCorrect(host); // last card -> round over
   assert.strictEqual(res.done, true);
   assert.strictEqual(g.phase, 'turnSummary');
-  assert.strictEqual(g.carryover['t1'], 40, '40 seconds banked');
+  assert.deepStrictEqual(g.nextRoundStarter, {
+    playerId: currentPlayerId,
+    teamId: 't1',
+    seconds: 40,
+  });
+  assert.deepStrictEqual(g.carryover, {}, 'no team carryover is created');
 });
 
-test('banked time is added to that team\'s next turn and then cleared', () => {
+test('the next round starts with the same player and uses only their remaining time', () => {
   const clock = fakeClock();
   const { g, host } = setup({ players: 2, teams: 2, cards: 1, clock });
   g.setDuration(host, 60);
   g.start(host);
   g.readyTurn(host);
   g.beginTurn(host);
+  const currentPlayerId = g.turnPlayerId;
   clock.advance(15000);
   g.markCorrect(host);
-  g.markCorrect(host); // round 1 done, 45s banked for t1
+  g.markCorrect(host); // round 1 done, 45s left
   g.advance(host);     // -> round 2 intro
   assert.strictEqual(g.roundIndex, 1);
   assert.strictEqual(g.round.key, 'act');
+  assert.strictEqual(g.snapshot(host).nextUp.playerId, currentPlayerId);
 
-  // Round 2 opens with t2's turn (rotation continues), so t1's bank waits.
+  // The leader still chooses the new round's standard duration.
+  g.setDuration(host, 30);
   g.readyTurn(host);
-  assert.strictEqual(g.turnTeamId, 't2');
-  const t2 = g.beginTurn(host);
-  assert.strictEqual(t2.seconds, 60, 't2 gets no bonus');
-  clock.advance(60000);
+  assert.strictEqual(g.turnPlayerId, currentPlayerId);
+  const starter = g.beginTurn(host);
+  assert.strictEqual(starter.seconds, 45, 'the starter uses only the 45s remaining');
+  assert.strictEqual(g.carryover['t1'], undefined, 'no team bank is spent');
+
+  // The selected duration applies to later turns in the new round.
+  clock.advance(45000);
   g.endTurn();
   g.advance(host);
-
-  assert.strictEqual(g.turnTeamId, 't1');
-  const t1 = g.beginTurn(host);
-  assert.strictEqual(t1.seconds, 105, 'banked 45s is added on');
-  assert.strictEqual(g.carryover['t1'], 0, 'bank is spent');
+  assert.strictEqual(g.turnTeamId, 't2');
+  const next = g.beginTurn(host);
+  assert.strictEqual(next.seconds, 30);
 });
 
 test('a fresh pile is dealt each round with every card back in play', () => {
