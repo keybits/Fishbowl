@@ -19,6 +19,7 @@
   var tickTimer = null;
   var toastTimer = null;
   var reconnectDelay = 500;
+  var clockOffset = 0;       // server clock minus this device's clock
 
   // Sound bookkeeping, keyed to the turn's end time so a state update
   // arriving mid-turn (someone joining, a score changing) cannot restart the
@@ -58,6 +59,9 @@
 
       if (msg.type === 'state') {
         state = msg.state;
+        // Phone clocks drift by seconds. Correcting against the server keeps
+        // every screen in the room showing the same number.
+        if (typeof state.now === 'number') clockOffset = state.now - Date.now();
         render();
       } else if (msg.type === 'joined') {
         stored.save(msg.code, msg.playerId);
@@ -456,7 +460,8 @@
 
   function renderPlaying() {
     if (!state.youAreHost) {
-      return spectator(state.turn.playerName + ' is playing for ' + state.turn.teamName + '.');
+      return spectator(state.turn.playerName + ' is playing for ' + state.turn.teamName + '.',
+        { timer: true });
     }
     return topbar({ code: true, endGame: true }) +
       '<div class="screen">' +
@@ -472,11 +477,31 @@
       '</div>';
   }
 
-  function spectator(line) {
+  function spectator(line, opts) {
+    opts = opts || {};
     var board = (state.standings || []).map(function (t, i) {
       return '<li' + (i === 0 ? ' class="lead"' : '') + '><span class="rank">' + (i + 1) + '</span>' +
         '<span class="tname">' + esc(t.name) + '</span><span class="tscore">' + t.score + '</span></li>';
     }).join('');
+
+    // While a turn is running every phone shows the same clock, so the room
+    // feels the time going rather than only whoever is holding the game. The
+    // ids match the leader's screen, so patch()/tick() drive both unchanged.
+    if (opts.timer) {
+      return topbar({ code: true }) +
+        '<div class="screen">' +
+          '<div class="timer-bar"><div id="bar"></div></div>' +
+          '<div class="clock" id="clock">--</div>' +
+          '<div class="center hint"><span id="gotcount">' + (state.turn.correctSoFar || 0) + '</span> right · ' +
+            '<span id="left">' + state.cardsLeft + '</span> cards left</div>' +
+          '<div class="grow" style="display:flex;flex-direction:column;justify-content:center;text-align:center">' +
+            '<h2>' + esc(line) + '</h2>' +
+            '<div>' + teamPill(findTeam(state.turn.teamId)) + '</div>' +
+            '<ul class="board mt" style="text-align:left">' + board + '</ul>' +
+          '</div>' +
+        '</div>';
+    }
+
     return topbar({ code: true }) +
       '<div class="screen"><div class="grow" style="display:flex;flex-direction:column;justify-content:center;text-align:center">' +
         '<h2>' + esc(line) + '</h2>' +
@@ -609,7 +634,8 @@
 
     // The round finishing early is a different sound to running out of time,
     // and it must not be mistaken for the alarm.
-    if (state.phase === 'turnSummary' && lastPhase === 'playing' && !alarmFired && state.cardsLeft === 0) {
+    if (state.phase === 'turnSummary' && lastPhase === 'playing' && !alarmFired &&
+        state.cardsLeft === 0 && state.youAreHost) {
       Sound.roundDone();
     }
     lastPhase = state.phase;
@@ -635,7 +661,7 @@
       var clock = document.getElementById('clock');
       var bar = document.getElementById('bar');
       if (!clock) { clearInterval(tickTimer); return; }
-      var ms = state.turn.endsAt - Date.now();
+      var ms = state.turn.endsAt - (Date.now() + clockOffset);
       var secs = Math.max(0, Math.ceil(ms / 1000));
       clock.textContent = secs;
       clock.className = 'clock' + (secs <= 10 ? ' danger' : '');
@@ -647,7 +673,9 @@
       if (secs !== lastTickSecond) {
         // Only sound a second we actually crossed while the clock was live —
         // never the initial paint, and never a second already gone.
-        if (lastTickSecond !== null && secs > 0) {
+        // Every phone counts, but only the leader's makes noise — a dozen
+        // handsets ticking a few milliseconds apart is just mush.
+        if (lastTickSecond !== null && secs > 0 && state.youAreHost) {
           if (secs <= 10) Sound.tickUrgent(secs % 2 === 1);
           else Sound.tick(secs % 2 === 1);
         }
@@ -656,7 +684,7 @@
 
       if (secs === 0 && !alarmFired) {
         alarmFired = true;
-        Sound.alarm();
+        if (state.youAreHost) Sound.alarm();
         clearInterval(tickTimer);
         tickTimer = null;
       }
@@ -819,7 +847,8 @@
   var origRender = render;
   render = function () {
     origRender();
-    keepAwake(!!(state && state.youAreHost && ['playing', 'turnReady'].indexOf(state.phase) !== -1));
+    keepAwake(!!(state && screen === 'game' &&
+      (state.phase === 'playing' || (state.youAreHost && state.phase === 'turnReady'))));
   };
 
   render();

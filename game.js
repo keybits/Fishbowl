@@ -568,6 +568,9 @@ class Game {
     const me = this.getPlayer(forId);
     const base = {
       code: this.code,
+      // Server time. Every phone now renders the countdown, so they subtract
+      // their own drift from this rather than trusting their local clock.
+      now: this.now(),
       phase: this.phase,
       cardsPerPlayer: this.cardsPerPlayer,
       hostId: this.hostId,
