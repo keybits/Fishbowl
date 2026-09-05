@@ -232,7 +232,7 @@
               return '<button class="chip' + (n === 3 ? ' sel' : '') + '" data-cpp="' + n + '">' + n + '</button>';
             }).join('') +
           '</div>' +
-          '<p class="hint mt">Three or four is the sweet spot. More cards means longer rounds.</p>' +
+          
           '<div class="grow"></div>' +
           '<div class="sticky-foot">' +
             '<button class="btn-primary btn-block" data-act="do-create">Create game</button>' +
