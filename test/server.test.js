@@ -146,13 +146,29 @@ async function until(fn, label, timeout = 3000) {
   check('the summary reports eight correct', () =>
     assert.strictEqual(host.state.summary.correct, 8));
 
-  // score editing
-  host.send({ type: 'adjustScore', delta: -1 });
-  await until(() => host.state.summary.correct === 7, 'score edited down');
-  check('the leader can edit the score after a turn', () =>
-    assert.strictEqual(host.state.summary.correct, 7));
-  host.send({ type: 'adjustScore', delta: 1 });
-  await until(() => host.state.summary.correct === 8, 'score restored');
+  // taking a card back off the score
+  check('the summary lists the cards that scored', () =>
+    assert.strictEqual(host.state.summary.cards.filter((c) => c.result === 'correct').length, 8));
+  const badCard = host.state.summary.cards.filter((c) => c.result === 'correct')[0];
+  host.send({ type: 'revokeCard', cardId: badCard.cardId });
+  await until(() => host.state.summary.correct === 7, 'card taken back');
+  check('taking a card back drops the score and returns it to the pile', () => {
+    assert.strictEqual(host.state.summary.correct, 7);
+    assert.strictEqual(host.state.cardsLeft, 1);
+    assert.ok(host.state.summary.cards.some((c) => c.cardId === badCard.cardId && c.result === 'revoked'));
+  });
+  check('the round is no longer over now the card is back', () =>
+    assert.strictEqual(host.state.nextRoundStarter, null));
+
+  // Play the returned card properly so the round ends for real again.
+  host.send({ type: 'advance' });
+  await until(() => host.state.phase === 'turnReady', 'next player up');
+  check('a returned card keeps the round going', () =>
+    assert.strictEqual(host.state.roundIndex, 0));
+  host.send({ type: 'beginTurn' });
+  await until(() => host.state.phase === 'playing', 'playing the returned card');
+  host.send({ type: 'correct' });
+  await until(() => host.state.phase === 'turnSummary' && host.state.cardsLeft === 0, 'round over again');
 
   // hand over leadership
   host.send({ type: 'transferLeadership', playerId: others[0].playerId });

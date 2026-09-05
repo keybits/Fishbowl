@@ -1,6 +1,8 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const http = require('http');
 const express = require('express');
 const { WebSocketServer } = require('ws');
@@ -8,9 +10,37 @@ const { Game, GameError, makeCode } = require('./game');
 
 const PORT = process.env.PORT || 3000;
 const ROOM_TTL_MS = 1000 * 60 * 60 * 6; // rooms evaporate 6 hours after last activity
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const ASSETS = ['styles.css', 'sound.js', 'app.js'];
+
+/** Phones cache the app hard, and a player mid-game will not think to clear
+ *  their browser. So the page itself is never cached, and it points at assets
+ *  stamped with a hash of their own contents — new code always arrives under a
+ *  URL nothing has seen before. */
+function stampedIndex() {
+  let html = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
+  for (const file of ASSETS) {
+    const hash = crypto
+      .createHash('sha1')
+      .update(fs.readFileSync(path.join(PUBLIC_DIR, file)))
+      .digest('hex')
+      .slice(0, 8);
+    html = html.split('"' + file + '"').join('"' + file + '?v=' + hash + '"');
+  }
+  return html;
+}
+
+let indexHtml = stampedIndex();
 
 const app = express();
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+app.get(['/', '/index.html'], (_req, res) => {
+  // In development the files change under a running server, so re-stamp on
+  // every load and a plain refresh is enough to pick up an edit.
+  if (process.env.NODE_ENV !== 'production') indexHtml = stampedIndex();
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(indexHtml);
+});
+app.use(express.static(PUBLIC_DIR, { maxAge: '1h', index: false }));
 app.get('/healthz', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
 
 const server = http.createServer(app);
@@ -226,8 +256,8 @@ function handle(ws, msg) {
       break;
     }
 
-    case 'adjustScore':
-      game.adjustScore(me, msg.delta);
+    case 'revokeCard':
+      game.revokeCard(me, msg.cardId);
       break;
 
     case 'advance':

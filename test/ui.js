@@ -135,15 +135,16 @@ const PHONE = { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, h
   await host.waitForSelector('[data-act="advance"]', { timeout: 5000 });
   await shot(host, '17-turn-summary');
 
-  await host.click('[data-adjust="1"]');
+  if (!(await host.$('[data-revoke]'))) problems.push('summary listed no guessed cards to correct');
+  await host.click('[data-revoke] >> nth=0');
   await host.waitForTimeout(200);
   await shot(host, '18-summary-edited');
-  await host.click('[data-adjust="-1"]');
-  await host.waitForTimeout(200);
 
   await host.click('[data-act="advance"]');
-  await host.waitForSelector('[data-act="ready-turn"]');
-  await shot(host, '19-round-two');
+  // The revoked card went back in the pile, so the round is not over after all
+  // and play moves to the next player instead of the next round.
+  await host.waitForSelector('[data-act="ready-turn"], [data-act="begin-turn"]');
+  await shot(host, '19-after-advance');
 
   // ---- end early to reach the final board -----------------------------
   host.on('dialog', (d) => d.accept());

@@ -210,21 +210,69 @@ test('skips are unlimited and tracked as a stat', () => {
   assert.strictEqual(g.getPlayer(ps[0].id).stats.skipped, 25);
 });
 
-test('the leader can correct a miscount afterwards', () => {
+test('the summary lists every card the turn scored', () => {
   const { g, host } = setup({ players: 2, teams: 2, cards: 3 });
   g.start(host);
   g.readyTurn(host);
   g.beginTurn(host);
+  const first = g.currentCardId;
+  g.markCorrect(host);
+  g.markSkip(host);
   g.markCorrect(host);
   g.endTurn();
-  assert.strictEqual(g.teams[0].score, 1);
-  g.adjustScore(host, 1);
+  const scored = g.turnSummary().cards.filter((c) => c.result === 'correct');
+  assert.strictEqual(scored.length, 2, 'both correct cards are listed');
+  assert.strictEqual(scored[0].cardId, first);
+  assert.strictEqual(scored[0].text, g.getCard(first).text, 'the card face is shown');
+});
+
+test('the leader can take back a wrongly scored card, and it returns to the pile', () => {
+  const { g, ps, host } = setup({ players: 2, teams: 2, cards: 3 });
+  g.start(host);
+  g.readyTurn(host);
+  g.beginTurn(host);
+  const turnPlayer = g.turnPlayerId;
+  const bad = g.currentCardId;
+  g.markCorrect(host);
+  g.markCorrect(host);
+  g.endTurn();
   assert.strictEqual(g.teams[0].score, 2);
-  assert.strictEqual(g.turnSummary().correct, 2);
-  g.adjustScore(host, -1);
-  g.adjustScore(host, -1);
-  assert.strictEqual(g.teams[0].score, 0);
-  assert.throws(() => g.adjustScore(host, -1), GameError, 'cannot go below zero cards');
+  const pileBefore = g.pile.length;
+
+  g.revokeCard(host, bad);
+  assert.strictEqual(g.teams[0].score, 1, 'the point comes off');
+  assert.strictEqual(g.turnSummary().correct, 1);
+  assert.strictEqual(g.getPlayer(turnPlayer).stats.correct, 1, 'the player stat comes off too');
+  assert.strictEqual(g.pile.length, pileBefore + 1, 'the card is back in the pile');
+  assert.ok(g.pile.includes(bad), 'and it is that card');
+  assert.ok(
+    g.turnSummary().cards.some((c) => c.cardId === bad && c.result === 'revoked'),
+    'the summary shows what was taken back'
+  );
+
+  assert.throws(() => g.revokeCard(host, bad), GameError, 'cannot take the same card back twice');
+  assert.throws(() => g.revokeCard(host, 'nope'), GameError, 'cannot take back a card that never scored');
+  assert.throws(() => g.revokeCard(ps[1].id, g.turnLog[1].cardId), GameError, 'only the leader may do it');
+});
+
+test('taking a card back un-ends a round that had just emptied the pile', () => {
+  const { g, host } = setup({ players: 2, teams: 2, cards: 1 });
+  g.start(host);
+  g.readyTurn(host);
+  g.beginTurn(host);
+  const first = g.currentCardId;
+  g.markCorrect(host);
+  g.markCorrect(host);
+  assert.strictEqual(g.phase, 'turnSummary');
+  assert.strictEqual(g.pile.length, 0);
+  assert.ok(g.nextRoundStarter, 'the round looked finished');
+
+  g.revokeCard(host, first);
+  assert.strictEqual(g.pile.length, 1);
+  assert.strictEqual(g.nextRoundStarter, null, 'no carryover starter any more');
+  g.advance(host);
+  assert.strictEqual(g.roundIndex, 0, 'still the same round');
+  assert.strictEqual(g.phase, 'turnReady', 'play moves to the next player');
 });
 
 test('the card is only ever exposed to the leader', () => {

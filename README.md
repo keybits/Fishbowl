@@ -140,8 +140,13 @@ the answer never leaves the server for anyone else.
 - **Round finish.** If the pile empties mid-turn, the same player starts the
   next round with the seconds left on their clock. The leader still chooses the
   standard duration for the new round, which applies after that opening turn.
-- **Score editing.** The leader can nudge a turn's count up or down on the
-  summary screen. Adjusting also corrects that player's personal stats.
+- **Score correcting.** The summary screen lists every card that turn scored.
+  If one should not have counted — a rule was broken, or the guess was wrong —
+  the leader taps − beside it. The point comes off the team and off that
+  player's personal stats, and the card goes back into the pile at a random
+  spot for someone else to have a go at. If the pile had only just emptied,
+  returning a card also un-ends the round: play carries on to the next player
+  rather than the next round, and the carried-over seconds are dropped.
 - **Leader handover** is offered between rounds and after a completed round.
   Cards and scores carry over to the new phone.
 - **End game** is available to the leader at any point and jumps to the final

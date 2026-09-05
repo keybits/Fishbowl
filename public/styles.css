@@ -312,9 +312,42 @@ input.code-input {
 .board .tscore { font-size: 27px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .board .sub { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
 
-.score-edit { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 6px 0 4px; }
-.score-edit .val { font-size: 52px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 66px; text-align: center; }
-.score-edit button { min-width: 54px; min-height: 54px; border-radius: 50%; font-size: 26px; padding: 0; }
+/* ------------------------------------------------------- turn summary */
+.turn-total { font-size: 52px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+.turn-cards { list-style: none; margin: 0 0 10px; padding: 0; }
+
+.turn-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 8px 8px 14px;
+  margin-bottom: 8px;
+  min-height: var(--tap);
+}
+
+.turn-card .tc-text { flex: 1; font-weight: 600; word-break: break-word; }
+
+.turn-card .tc-take {
+  flex: 0 0 auto;
+  min-width: 46px;
+  min-height: 46px;
+  border-radius: 50%;
+  font-size: 26px;
+  line-height: 1;
+  padding: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  color: var(--red);
+}
+
+.turn-card.gone { opacity: 0.55; }
+.turn-card.gone .tc-text { text-decoration: line-through; font-weight: 500; color: var(--muted); }
+.turn-card .tc-note { font-size: 13px; color: var(--muted); padding-right: 6px; }
+.turn-card.empty { justify-content: center; color: var(--muted); font-weight: 500; }
 
 .rules { list-style: none; margin: 0; padding: 0; }
 .rules li { padding: 7px 0 7px 20px; position: relative; color: var(--muted); font-size: 15px; }

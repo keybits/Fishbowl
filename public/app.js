@@ -166,6 +166,9 @@
     k += ':' + state.players.map(function (p) { return p.id + (p.submitted ? 1 : 0) + (p.teamId || '') + (p.connected ? 'c' : 'd'); }).join(',');
     k += ':' + state.teams.length + ':' + state.turnDuration;
     if (state.turn) k += ':' + state.turn.playerId;
+    // Taking a card back changes the summary under the leader's fingers, and
+    // there is nothing to type into on that screen, so rebuild it on any move.
+    if (state.summary) k += ':' + state.summary.correct + ':' + state.cardsLeft;
     return k;
   }
 
@@ -509,19 +512,42 @@
       ? (state.roundIndex >= state.roundCount - 1 ? 'See the final result' : 'Next round')
       : 'Next player';
 
+    // Only the cards that scored matter here — skips stayed in the pile all
+    // along, so there is nothing to take off for them.
+    var scored = (s.cards || []).filter(function (c) {
+      return c.result === 'correct' || c.result === 'revoked';
+    });
+    var cardList = scored.length
+      ? scored.map(function (c) {
+          if (c.result === 'revoked') {
+            return '<li class="turn-card gone">' +
+              '<span class="tc-text">' + esc(c.text) + '</span>' +
+              '<span class="tc-note">back in the pile</span></li>';
+          }
+          return '<li class="turn-card">' +
+            '<span class="tc-text">' + esc(c.text) + '</span>' +
+            '<button class="tc-take" data-revoke="' + esc(c.cardId) + '" ' +
+              'aria-label="Take back ' + esc(c.text) + '">−</button></li>';
+        }).join('')
+      : '<li class="turn-card empty">Nothing guessed this turn.</li>';
+
     return topbar({ code: true, endGame: true }) +
       '<div class="screen">' +
-        '<div class="center"><p style="margin-bottom:2px">' + esc(player ? player.name : '') + ' got</p></div>' +
-        '<div class="score-edit">' +
-          '<button data-adjust="-1">−</button>' +
-          '<span class="val">' + s.correct + '</span>' +
-          '<button data-adjust="1">+</button>' +
+        '<div class="center">' +
+          '<p style="margin-bottom:2px">' + esc(player ? player.name : '') + ' got</p>' +
+          '<div class="turn-total">' + s.correct + '</div>' +
         '</div>' +
-        '<p class="hint center">Tap − or + if the count is off. ' + s.skipped + ' skipped.</p>' +
+        (s.correct
+          ? '<p class="hint center">Tap − on anything that should not have counted. ' +
+            'It comes off the score and goes back in the pile.</p>'
+          : '') +
         (roundDone ? '<p class="center" style="color:var(--accent);font-weight:700">Round complete</p>' : '') +
         nextRound +
         '<div class="divider"></div>' +
-        '<div class="scroll"><ul class="board">' + board + '</ul>' +
+        '<div class="scroll">' +
+          '<ul class="turn-cards">' + cardList + '</ul>' +
+          (s.skipped ? '<p class="hint center">' + s.skipped + ' skipped.</p>' : '') +
+          '<ul class="board mt">' + board + '</ul>' +
           (showHandover ? handoverPanel() : '') +
         '</div>' +
         '<div class="sticky-foot">' +
@@ -687,8 +713,8 @@
     on('[data-dur]', 'click', function () {
       send({ type: 'setDuration', value: Number(this.getAttribute('data-dur')) });
     });
-    on('[data-adjust]', 'click', function () {
-      send({ type: 'adjustScore', delta: Number(this.getAttribute('data-adjust')) });
+    on('[data-revoke]', 'click', function () {
+      send({ type: 'revokeCard', cardId: this.getAttribute('data-revoke') });
     });
     on('[data-handover]', 'click', function () {
       showHandover = false;

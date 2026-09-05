@@ -449,37 +449,49 @@ class Game {
   turnSummary() {
     const correct = this.turnLog.filter((l) => l.result === 'correct').length;
     const skipped = this.turnLog.filter((l) => l.result === 'skip').length;
+    const revoked = this.turnLog.filter((l) => l.result === 'revoked').length;
     return {
       playerId: this.turnPlayerId,
       teamId: this.turnTeamId,
       correct,
       skipped,
+      revoked,
       cards: this.turnLog.map((l) => {
         const card = this.getCard(l.cardId);
-        return { text: card ? card.text : '(missing)', result: l.result };
+        return { cardId: l.cardId, text: card ? card.text : '(missing)', result: l.result };
       }),
     };
   }
 
-  /** Leader fixes a miscount on the summary screen. */
-  adjustScore(playerId, delta) {
+  /** Leader spots a card that should not have counted — a rule was broken, or
+   *  the guess was wrong. The point comes off and the card goes back into the
+   *  pool so someone else gets a go at it. */
+  revokeCard(playerId, cardId) {
     this.requireHost(playerId);
-    if (this.phase !== 'turnSummary') throw new GameError('You can only edit the score right after a turn.');
-    const d = clampInt(delta, -1, 1);
-    if (d === 0) return;
+    if (this.phase !== 'turnSummary') throw new GameError('You can only fix the score right after a turn.');
+    const entry = this.turnLog.find((l) => l.result === 'correct' && l.cardId === cardId);
+    if (!entry) throw new GameError('That card was not counted on this turn.');
+    entry.result = 'revoked';
+
     const team = this.teams.find((t) => t.id === this.turnTeamId);
-    const player = this.getPlayer(this.turnPlayerId);
-    const turnCorrect = this.turnLog.filter((l) => l.result === 'correct').length;
-    if (d < 0 && turnCorrect === 0) throw new GameError('Nothing to take off.');
-    team.score = Math.max(0, team.score + d);
-    team.stats.correct = Math.max(0, team.stats.correct + d);
-    if (player) player.stats.correct = Math.max(0, player.stats.correct + d);
-    if (d > 0) {
-      this.turnLog.push({ cardId: null, result: 'correct', manual: true });
-    } else {
-      const idx = [...this.turnLog].reverse().findIndex((l) => l.result === 'correct');
-      if (idx !== -1) this.turnLog.splice(this.turnLog.length - 1 - idx, 1);
+    if (team) {
+      team.score = Math.max(0, team.score - 1);
+      team.stats.correct = Math.max(0, team.stats.correct - 1);
     }
+    const player = this.getPlayer(this.turnPlayerId);
+    if (player) player.stats.correct = Math.max(0, player.stats.correct - 1);
+
+    // Back into the pile at a random spot, so it is not obviously the very
+    // next card for whoever goes after.
+    const at = Math.floor(Math.random() * (this.pile.length + 1));
+    this.pile.splice(at, 0, cardId);
+
+    // The round only looked finished because this card was wrongly off the
+    // table — play carries on as a normal turn instead.
+    this.pendingRoundEnd = false;
+    this.nextRoundStarter = null;
+
+    return { cardsLeft: this.pile.length };
   }
 
   /** Advance from the turn summary: next turn, next round, or game over. */
@@ -611,7 +623,10 @@ class Game {
       };
     }
 
-    if (this.phase === 'turnSummary') base.summary = this.turnSummary();
+    // The summary spells out every card face, skipped ones included, so it
+    // stays on the leader's device like the live card does. Other phones only
+    // ever show the standings on this screen.
+    if (this.phase === 'turnSummary' && forId === this.hostId) base.summary = this.turnSummary();
 
     if (['turnReady', 'roundIntro', 'turnSummary', 'playing'].includes(this.phase)) {
       const pending = this.phase === 'roundIntro' ? this.nextRoundStarter : null;
