@@ -59,6 +59,36 @@ Any host that runs Node and supports websockets works. Two easy ones:
 1. `npm i -g @railway/cli && railway login`
 2. `railway init && railway up` from this folder.
 
+**Fly.io**
+
+This repository includes a `Dockerfile` and `.dockerignore` for Fly. Install and
+sign in to `flyctl`, then run these commands from the project directory:
+
+```bash
+brew install flyctl                 # macOS; skip if already installed
+fly auth login
+fly launch --no-deploy              # choose a unique app name and a nearby region
+fly deploy
+fly apps open                       # opens the public HTTPS URL
+```
+
+When `fly launch` asks about a database, choose **No**. The app does not need
+one for a party game. Keep it to one machine: rooms and game state are stored in
+this Node process, so multiple machines would not share rooms. In the generated
+`fly.toml`, make sure the HTTP service uses `internal_port = 3000`; for a live
+party, set `auto_stop_machines = "off"` so Fly does not stop the process and
+end an in-progress game. Check the deployment with:
+
+```bash
+fly status
+curl https://YOUR-APP-NAME.fly.dev/healthz
+fly logs
+```
+
+The deployed site uses `wss://` automatically because the browser derives the
+WebSocket protocol from the page URL. A machine restart still ends active games;
+that is expected because rooms are intentionally in memory.
+
 Free tiers sleep when idle, so the first person to open it waits ten or twenty
 seconds. Fine for testing, worth paying the few euro before a real party.
 
