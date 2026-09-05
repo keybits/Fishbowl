@@ -1,4 +1,4 @@
-/* Fishbowl — sound.
+/* Fruit Salad — sound.
  *
  * Everything is synthesised with the Web Audio API. No audio files: nothing to
  * download, nothing to fail on a bad connection at a party, and the whole thing

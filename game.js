@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Fishbowl — pure game engine.
+ * Fruit Salad — pure game engine.
  *
  * No networking, no DOM, no timers. The transport layer (server.js) owns
  * sockets and setTimeout; this file owns rules. Keeping it separate means the

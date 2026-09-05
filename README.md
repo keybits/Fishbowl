@@ -1,10 +1,10 @@
-# Fishbowl
+# Fruit Salad
 
 A four-round party word game. Everyone writes cards on their own phone, then
 one phone runs the game while it gets passed around the room.
 
-Working title — rename it whenever you like (it appears in `public/index.html`
-and on the home screen in `public/app.js`).
+The name appears in `public/index.html` and on the home screen in
+`public/app.js` if you ever want to change it again.
 
 ---
 

@@ -1,4 +1,4 @@
-/* Fishbowl — client.
+/* Fruit Salad — client.
  * One socket, one state object from the server, one render function.
  * Everything the player sees is derived from `state`; nothing is guessed
  * locally except the countdown, which ticks against the server's end time.
@@ -179,10 +179,10 @@
   // ---------------------------------------------------------- pre-game
   function renderPreGame() {
     if (screen === 'home') {
-      return topbar({ label: 'Fishbowl' }) +
+      return topbar({ label: 'Fruit Salad' }) +
         '<div class="screen">' +
           '<div class="grow" style="display:flex;flex-direction:column;justify-content:center;padding-bottom:14vh">' +
-            '<h1>Fishbowl</h1>' +
+            '<h1>Fruit Salad</h1>' +
             '<p class="lede">Everyone writes a few cards. Four rounds, same cards, ' +
             'a new way to explain them every time.</p>' +
             '<div class="stack">' +

@@ -1,5 +1,5 @@
 {
-  "name": "fishbowl-party-game",
+  "name": "fruit-salad-party-game",
   "version": "1.0.0",
   "description": "Four-round party word game. Players write cards on their own phones, then one phone runs the game.",
   "main": "server.js",

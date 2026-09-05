@@ -315,7 +315,7 @@ wss.on('close', () => {
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    console.log(`Fishbowl running on http://localhost:${PORT}`);
+    console.log(`Fruit Salad running on http://localhost:${PORT}`);
   });
 }
 
