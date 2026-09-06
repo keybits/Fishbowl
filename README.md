@@ -43,6 +43,17 @@ judge the sound design by ear without starting a game.
 
 ---
 
+## Installing on iPhone
+
+The deployed site is a Progressive Web App. On iOS, open its HTTPS URL in Safari,
+tap **Share**, then **Add to Home Screen**, and confirm **Add**. The resulting
+home-screen icon opens the app in standalone mode without Safari's browser chrome.
+
+The app shell can open from cache, but starting or rejoining a game still needs
+the server connection. For installation on a real phone, use the HTTPS deployment
+rather than the local `http://` address (Safari only permits this reliably for
+`localhost`).
+
 ## Deploying so friends can actually join
 
 Any host that runs Node and supports websockets works. Two easy ones:
